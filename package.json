@@ -1,0 +1,16 @@
+{
+  "name": "js",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "node action/build.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@puerts/shell-util": "^2.0.1",
+    "mkdirp": "^3.0.1",
+    "typescript": "^5.3.3"
+  }
+}
