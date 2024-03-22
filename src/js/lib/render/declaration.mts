@@ -20,6 +20,17 @@ function renderTypeName(type: TSType) {
     const name = type.name;
     return name;
 }
+function renderDefaultValue(defaultValue: string, defaultValueKind: CS.CppAst.CppExpressionKind) {
+    
+    switch(defaultValueKind) {
+        case CS.CppAst.CppExpressionKind.DeclRef:
+            return 'SC.' + defaultValue.split('::').join('.');
+        case CS.CppAst.CppExpressionKind.FloatingLiteral:
+            return defaultValue.replace(/f$/, '');
+        default:
+            return defaultValue;
+    }
+}
 
 function renderClass(cls: TSClass, usageCollector: UsageCollector) {
     let ret = ''
@@ -38,7 +49,7 @@ function renderClass(cls: TSClass, usageCollector: UsageCollector) {
     if (cls.ctor.overloads.length != 0) {
         ret += cls.ctor.overloads.map((overload) => {
             return `    constructor(${overload.params.map((param) => {
-                return `${param.name}: ${renderTypeName(param.type)}${param.defaultValue ? ' = ' + param.defaultValue : ''}`
+                return `${param.name}: ${renderTypeName(param.type)}${param.defaultValue ? ' = ' + renderDefaultValue(param.defaultValue, param.defaultValueKind) : ''}`
             }).join(', ')});`
         }).join('\n');
         ret += '\n\n';
@@ -48,7 +59,7 @@ function renderClass(cls: TSClass, usageCollector: UsageCollector) {
         ret += cls.functions.map((func) => {
             return func.overloads.map((overload) => {
                 return `    public ${overload.isStatic ? 'static ': ''}${overload.name}(${overload.params.map((param) => {
-                    return `${param.name}: ${renderTypeName(param.type)}${param.defaultValue ? ' = ' + param.defaultValue : ''}`
+                    return `${param.name}: ${renderTypeName(param.type)}${param.defaultValue ? ' = ' + renderDefaultValue(param.defaultValue, param.defaultValueKind) : ''}`
                 }).join(', ')}) : ${renderTypeName(overload.returnType)};`
             }).join('\n');
         }).join('\n\n');

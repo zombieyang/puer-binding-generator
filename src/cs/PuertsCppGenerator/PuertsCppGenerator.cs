@@ -86,11 +86,10 @@ class PuertsCppGenerator
         
         JSObject BindingConfig = jsEnv.ExecuteModule("binding.config.js").Get<JSObject>("default");
         string basePath = BindingConfig.Get<string>("base");
-        Action<
-            CppAst.CppCompilation, 
-            string,
-            string
-        > doGenerate = jsEnv.ExecuteModule("generator.mjs").Get<Action<CppAst.CppCompilation, string, string>>("default");
+        Action<CppAst.CppCompilation, string, string, string> doGenerate 
+            = jsEnv.ExecuteModule("generator.mjs").Get<
+                Action<CppAst.CppCompilation, string, string, string>
+            >("default");
         
         var config = new CppAst.CppParserOptions();
         config.AdditionalArguments.Add("-std=c++17");
@@ -126,10 +125,14 @@ class PuertsCppGenerator
         var BindingConfigOutput = BindingConfig.Get<JSObject>("output");
         string bindingOutputPath = "";
         string dtsOutputPath = "";
+        string bindingOutputFunctionName = "ALL_PUER_BINDING";
         if (BindingConfigOutput != null) 
         {
             bindingOutputPath = BindingConfigOutput.Get<string>("binding");
             dtsOutputPath = BindingConfigOutput.Get<string>("dts");
+            string tempOutputFunctionName = BindingConfigOutput.Get<string>("bindingFunctionName");
+            if (!String.IsNullOrEmpty(tempOutputFunctionName))
+                bindingOutputFunctionName = tempOutputFunctionName;
         }
         if (string.IsNullOrEmpty(bindingOutputPath) || string.IsNullOrEmpty(dtsOutputPath))
         {
@@ -147,7 +150,8 @@ class PuertsCppGenerator
         doGenerate(
             compilation, 
             bindingOutputPath,
-            dtsOutputPath
+            dtsOutputPath,
+            bindingOutputFunctionName
         );
     
         // Directory.CreateDirectory(Path.GetDirectoryName(outputPath));

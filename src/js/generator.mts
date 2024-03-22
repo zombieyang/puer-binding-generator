@@ -7,17 +7,21 @@ import UsageCollector from "./lib/UsageCollector.mjs";
 export default function render (
     compilation: CS.CppAst.CppCompilation,
     bindingOutputPath: string,
-    dtsOutputPath: string
+    dtsOutputPath: string,
+    bindingFunctionName: string
 ) {
     const usageExpander = new UsageCollector(compilation);
     const whiteList = BindingConfig.whitelist;
 
-    whiteList.forEach((signature: string) => {
-        usageExpander.addBaseUsage(signature);
-    });
+    whiteList
+        // do distinct
+        .filter((value: string, index: number, arr: string[]) => arr.indexOf(value) == index)
+        .forEach((signature: string) => {
+            usageExpander.addBaseUsage(signature);
+        });
     usageExpander.expandCurrentUsage();
 
-    const bindingContent = renderBinding(usageExpander, BindingConfig);
+    const bindingContent = renderBinding(usageExpander, BindingConfig, bindingFunctionName);
     const dtsContent = renderDeclaration(usageExpander);
 
     CS.System.IO.File.WriteAllText(bindingOutputPath, bindingContent);

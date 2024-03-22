@@ -22,6 +22,7 @@ class TSType {
     }
     public get name(): string {
         let cppName = this.cppName;
+
         switch (this.astType.TypeKind) {
             case CS.CppAst.CppTypeKind.Function:
                 const func = this.astType as CS.CppAst.CppFunctionType;
@@ -103,6 +104,10 @@ class TSType {
     
     constructor(public readonly astType: CS.CppAst.CppType) {
         this.cppName = astType.FullName;
+        // It may be a bug of cppast.net
+        if (this.cppName.indexOf('std::function') != -1 && this.cppName.indexOf('(*)') != -1)
+            this.cppName = this.cppName.replace('(*)', '');
+
         this.astType = astType;
         this.isPrimitive = astType.TypeKind == CS.CppAst.CppTypeKind.Primitive;
         if ([
@@ -131,6 +136,7 @@ class TSVariable {
     public readonly isReadOnly: boolean;
     public readonly type: TSType;
     public readonly defaultValue: string = '';
+    public readonly defaultValueKind: CS.CppAst.CppExpressionKind = CS.CppAst.CppExpressionKind.Unexposed;
     constructor(public readonly astField: CS.CppAst.CppField | CS.CppAst.CppParameter, paramIndex: number = 0) {
         if (astField instanceof CS.CppAst.CppParameter) {
             const astParam = astField;
@@ -139,17 +145,8 @@ class TSVariable {
             this.isReadOnly = astParam.Type.TypeKind == CS.CppAst.CppTypeKind.Qualified;
             this.type = new TSType(astParam.Type);
             if (astParam.InitExpression) {
-                switch(astParam.InitExpression.Kind) {
-                    case CS.CppAst.CppExpressionKind.DeclRef:
-                        this.defaultValue = 'SC.' + astParam.InitExpression.toString().split('::').join('.');
-                        break;
-                    case CS.CppAst.CppExpressionKind.FloatingLiteral:
-                        this.defaultValue = astParam.InitExpression.toString().replace(/f$/, '');
-                        break;
-                    default:
-                        this.defaultValue = astParam.InitExpression.toString();
-                        break;
-                }
+                this.defaultValueKind = astParam.InitExpression.Kind;
+                this.defaultValue = astParam.InitExpression.toString();
             }
 
         } else if (astField instanceof CS.CppAst.CppField) {
