@@ -1,5 +1,6 @@
 import { csForEach } from "./util.mjs";
 import { TSClass, TSEnum } from "./definitions.mjs";
+import { isNotSupportedClass } from "./SupportChecks.mjs";
 
 export interface GenerateBlackList {
     namespaces: string[]
@@ -103,69 +104,69 @@ export default class GenerateContext {
         return headers;
     }
 
-    protected addRefUsage(name: string) {
-        const astClass = this.findAstClass(name);
-
-        if (astClass) {
-            if (!this.usedCls.has(astClass)) {
-                if (TSClass.isNotSupportedClass(this, astClass)) return;
-                let tsCls = new TSClass(this, astClass)
-                this.usedCls.set(astClass, tsCls);
-                return tsCls
-
-                // template not supported yet
-                // if (astClass.TemplateKind == CS.CppAst.CppTemplateKind.TemplateSpecializedClass) {
-                //     csForEach(astClass.TemplateSpecializedArguments, item => {
-                //         if (item.TypeKind == CS.CppAst.CppTypeKind.Function) return;
-                //         this.addRefUsage(item.FullName);
-                //     })
-                // }
-            }
-            return
-        }
-        const astEnum = this.findAstEnum(name);
-        if (astEnum) {
-            if (!this.usedEnum.has(astEnum)) {
-                let tsEnum = new TSEnum(this, astEnum)
-                this.usedEnum.set(astEnum, tsEnum);
-                // return tsEnum
-            }
-            return
-        }
-        console.warn(`can't find class ${name} in compilation`);
-    }
     public expandCurrentUsage() {
+        const addRefUsage = (name: string) => {
+            const astClass = this.findAstClass(name);
+
+            if (astClass) {
+                if (!this.usedCls.has(astClass)) {
+                    if (isNotSupportedClass(this, astClass)) return;
+                    let tsCls = new TSClass(this, astClass)
+                    this.usedCls.set(astClass, tsCls);
+                    return tsCls
+
+                    // template not supported yet
+                    // if (astClass.TemplateKind == CS.CppAst.CppTemplateKind.TemplateSpecializedClass) {
+                    //     csForEach(astClass.TemplateSpecializedArguments, item => {
+                    //         if (item.TypeKind == CS.CppAst.CppTypeKind.Function) return;
+                    //         this.addRefUsage(item.FullName);
+                    //     })
+                    // }
+                }
+                return
+            }
+            const astEnum = this.findAstEnum(name);
+            if (astEnum) {
+                if (!this.usedEnum.has(astEnum)) {
+                    let tsEnum = new TSEnum(this, astEnum)
+                    this.usedEnum.set(astEnum, tsEnum);
+                    // return tsEnum
+                }
+                return
+            }
+            console.warn(`can't find class ${name} in compilation`);
+        }
         for (const cls of this.usedCls.values()) {
-            cls.baseTypeCppFullName && this.addRefUsage(cls.baseTypeCppFullName);
+            cls.baseTypeCppFullName && addRefUsage(cls.baseTypeCppFullName);
             cls.ctor.overloads.forEach((func) => {
                 const type = func.returnType.rawType;
-                if (!type.isPrimitive) this.addRefUsage(type.cppName)
+                if (!type.isPrimitive) addRefUsage(type.cppName)
 
                 func.params.forEach((param) => {
                     const type = param.type.rawType;
-                    if (!type.isPrimitive) this.addRefUsage(type.cppName)
+                    if (!type.isPrimitive) addRefUsage(type.cppName)
 
                     if (param.astField.InitExpression && param.astField.InitExpression.Kind == CS.CppAst.CppExpressionKind.DeclRef) {
-                        const dvCls = this.addRefUsage(param.astField.InitExpression.toString().split('::').slice(0, -1).join('::'));
+                        const dvCls = addRefUsage(param.astField.InitExpression.toString().split('::').slice(0, -1).join('::'));
                         if (dvCls) dvCls.addMember(param.astField.InitExpression.toString().split('::').slice(-1)[0]);
                     }
                 })
             })
             cls.fields.forEach((field) => {
                 const type = field.type.rawType;
-                if (!type.isPrimitive) this.addRefUsage(type.cppName)
+                if (!type.isPrimitive) addRefUsage(type.cppName)
             })
             cls.functions.forEach((overload) => {
                 overload.overloads.forEach((func) => {
                     const type = func.returnType.rawType;
-                    if (!type.isPrimitive) this.addRefUsage(type.cppName)
+                    if (!type.isPrimitive) addRefUsage(type.cppName)
 
                     func.params.forEach((param) => {
                         const type = param.type.rawType;
-                        if (!type.isPrimitive) this.addRefUsage(type.cppName)
+                        if (!type.isPrimitive) addRefUsage(type.cppName)
 
                         if (param.astField.InitExpression && param.astField.InitExpression.Kind == CS.CppAst.CppExpressionKind.DeclRef) {
-                            const dvCls = this.addRefUsage(param.astField.InitExpression.toString().split('::').slice(0, -1).join('::'));
+                            const dvCls = addRefUsage(param.astField.InitExpression.toString().split('::').slice(0, -1).join('::'));
                             if (dvCls) dvCls.addMember(param.astField.InitExpression.toString().split('::').slice(-1)[0]);
                         }
                     })
@@ -180,7 +181,7 @@ export default class GenerateContext {
 
         if (astClass) {
             if (!this.usedCls.has(astClass)) {
-                if (TSClass.isNotSupportedClass(this, astClass)) return;
+                if (isNotSupportedClass(this, astClass)) return;
                 this.usedCls.set(astClass, new TSClass(this, astClass));
             }
             const cls = this.usedCls.get(astClass) as TSClass;
@@ -207,13 +208,16 @@ export default class GenerateContext {
     private iterateNamespace(namespace: CS.CppAst.CppCompilation | CS.CppAst.CppNamespace | CS.CppAst.CppClass) {
         if (namespace.Classes) csForEach(namespace.Classes, (astClass: CS.CppAst.CppClass) => {
             if (!this.usedCls.has(astClass)) {
-                if (TSClass.isNotSupportedClass(this, astClass)) return;
+                if (isNotSupportedClass(this, astClass)) return;
                 const tsCls = new TSClass(this, astClass)
                 this.usedCls.set(astClass, tsCls);
                 tsCls.addAllMember();
             }
 
             this.iterateNamespace(astClass);
+        });
+        if (namespace.Enums) csForEach(namespace.Enums, (cls: CS.CppAst.CppEnum) => {
+            this.usedEnum.set(cls, new TSEnum(this, cls));
         });
         if (!(namespace instanceof CS.CppAst.CppClass) && namespace.Namespaces) csForEach(namespace.Namespaces, (item) => {
             this.iterateNamespace(item)

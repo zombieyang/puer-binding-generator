@@ -108,9 +108,9 @@ class PuertsCppGenerator
         
         JSObject BindingConfig = jsEnv.ExecuteModule(configFileName).Get<JSObject>("default");
         string basePath = BindingConfig.Get<string>("base");
-        Action<CppAst.CppCompilation, string, string, JSObject> doGenerate 
+        Action<CppAst.CppCompilation, JSObject> doGenerate 
             = jsEnv.ExecuteModule("generator.mjs").Get<
-                Action<CppAst.CppCompilation, string, string, JSObject>
+                Action<CppAst.CppCompilation, JSObject>
             >("default");
         
         var config = new CppAst.CppParserOptions();
@@ -147,28 +147,19 @@ class PuertsCppGenerator
         var BindingConfigOutput = BindingConfig.Get<JSObject>("output");
         string bindingOutputPath = "";
         string dtsOutputPath = "";
+        string patchJSOutputPath = "";
         if (BindingConfigOutput != null) 
         {
             bindingOutputPath = BindingConfigOutput.Get<string>("binding");
             dtsOutputPath = BindingConfigOutput.Get<string>("dts");
-        }
-        if (string.IsNullOrEmpty(bindingOutputPath) || string.IsNullOrEmpty(dtsOutputPath))
-        {
-            var outputDir = Path.Combine(Environment.CurrentDirectory, "output");
-            System.IO.Directory.CreateDirectory(outputDir);
-            if (string.IsNullOrEmpty(bindingOutputPath))
-                bindingOutputPath = Path.Combine(outputDir, "/all.binding.cpp");
-            if (string.IsNullOrEmpty(dtsOutputPath))
-                dtsOutputPath = Path.Combine(outputDir, "/index.d.ts");
-        } else {
+            patchJSOutputPath = BindingConfigOutput.Get<string>("patchjs");
             System.IO.Directory.CreateDirectory(Path.GetDirectoryName(bindingOutputPath));
             System.IO.Directory.CreateDirectory(Path.GetDirectoryName(dtsOutputPath));
+            System.IO.Directory.CreateDirectory(Path.GetDirectoryName(patchJSOutputPath));
         }
 
         doGenerate(
             compilation, 
-            bindingOutputPath,
-            dtsOutputPath,
             BindingConfig
         );
         return 0;

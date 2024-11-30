@@ -1,0 +1,1 @@
+CALL "..\dist\cppast.net\PuertsCppGenerator.exe"

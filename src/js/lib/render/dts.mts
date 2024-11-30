@@ -2,18 +2,18 @@ import { TSClass, TSEnum, TSType } from "../definitions.mjs";
 import GenerateContext from "../GenerateContext.mjs";
 
 export default function renderDeclaration(
-    usageCollector: GenerateContext
+    generateContext: GenerateContext
 ) {
-    let ret = 'declare namespace SC {\n\n'
+    let ret = 'declare namespace CPP {\n\n'
 
-    const allClsDict = usageCollector.getAllUsedCls();
+    const allClsDict = generateContext.getAllUsedCls();
     for (const cls of allClsDict) {
-        ret += renderClass(cls, usageCollector) + '\n\n';
+        ret += renderClass(cls, generateContext) + '\n\n';
     }
 
-    const allEnumDict = usageCollector.getAllUsedEnum();
+    const allEnumDict = generateContext.getAllUsedEnum();
     for (const enumm of allEnumDict) {
-        ret += renderEnum(enumm, usageCollector) + '\n\n';
+        ret += renderEnum(enumm, generateContext) + '\n\n';
     }
 
     return ret + "\n\n}";

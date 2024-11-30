@@ -1,72 +1,9 @@
 import GenerateContext, { GenerateBlackList } from "./GenerateContext.mjs";
+import { PRINT } from "./globalConfig.mjs";
+import { getUnderlyingType, isNotSupportedFunction, isNotSupportedTypeForInterop, isNotSupportedVariable } from "./SupportChecks.mjs";
 import { checkExclude, csForEach, csMap, csWhere } from "./util.mjs";
 
 class TSType {
-    public static isNotSupportedTypeForInterop(generateContext: GenerateContext, astType: CS.CppAst.CppType) {
-        // if ((globalThis as any).zombietest) console.log('zombietest', astType.FullName, astType.TypeKind, this.getUnderlyingType(astType).TypeKind);
-        while (astType.TypeKind == CS.CppAst.CppTypeKind.Qualified ||
-            astType.TypeKind == CS.CppAst.CppTypeKind.Typedef) {
-            astType = this.getUnderlyingType(astType);
-        }
-
-        if (astType.TypeKind == CS.CppAst.CppTypeKind.StructOrClass) {
-            return !generateContext.specialTSNames[astType.FullName];
-        }
-        if (astType.TypeKind == CS.CppAst.CppTypeKind.Reference) {
-            let underlyingType = this.getUnderlyingType(astType)
-            let isQualified = underlyingType.TypeKind == CS.CppAst.CppTypeKind.Qualified;
-            while (underlyingType.TypeKind == CS.CppAst.CppTypeKind.Qualified ||
-                underlyingType.TypeKind == CS.CppAst.CppTypeKind.Typedef) {
-                underlyingType = this.getUnderlyingType(underlyingType);
-            }
-            return !isQualified || this.isNotSupportedType(generateContext, underlyingType);
-        }
-
-        if (astType.TypeKind == CS.CppAst.CppTypeKind.Array && !astType.FullName.startsWith("char"))
-            return true;
-        if (astType.TypeKind == CS.CppAst.CppTypeKind.Pointer) {
-            let underlyingType = this.getUnderlyingType(astType);
-            while (underlyingType.TypeKind == CS.CppAst.CppTypeKind.Qualified ||
-                underlyingType.TypeKind == CS.CppAst.CppTypeKind.Typedef) {
-                underlyingType = this.getUnderlyingType(underlyingType);
-            }
-            if (underlyingType.TypeKind != CS.CppAst.CppTypeKind.StructOrClass && underlyingType.FullName != 'char')
-                return true;
-        }
-        return this.isNotSupportedType(generateContext, astType);
-    }
-    public static isNotSupportedType(generateContext: GenerateContext, astType: CS.CppAst.CppType) {
-        let lastKind = null;
-        while ([
-            CS.CppAst.CppTypeKind.Array,
-            CS.CppAst.CppTypeKind.Pointer,
-            CS.CppAst.CppTypeKind.Qualified,
-            CS.CppAst.CppTypeKind.Reference,
-            CS.CppAst.CppTypeKind.Typedef,
-        ].indexOf(astType.TypeKind) != -1) {
-            // double pointer is not supported
-            if (
-                (lastKind == CS.CppAst.CppTypeKind.Array || lastKind == CS.CppAst.CppTypeKind.Pointer) &&
-                (astType.TypeKind == CS.CppAst.CppTypeKind.Array || astType.TypeKind == CS.CppAst.CppTypeKind.Pointer)
-            ) return true;
-            lastKind = astType.TypeKind;
-            astType = this.getUnderlyingType(astType);
-        }
-        if (astType.TypeKind == CS.CppAst.CppTypeKind.Unexposed) return true;
-        if (astType.FullName.startsWith('std'))
-            return astType.FullName.indexOf('function') == -1 && astType.FullName.indexOf('string') == -1;
-        if (astType.TypeKind == CS.CppAst.CppTypeKind.Function) return true;
-        if (astType.TypeKind == CS.CppAst.CppTypeKind.StructOrClass) return TSClass.isNotSupportedClass(generateContext, astType as CS.CppAst.CppClass);
-        return false;
-    }
-    public static isNotSupportedTypeForBinding(type: TSType | CS.CppAst.CppType) {
-        if (type instanceof TSType) type = type.astType;
-        if (type.TypeKind == CS.CppAst.CppTypeKind.Enum) return true;
-        return false;
-    }
-    public static getUnderlyingType(astType: CS.CppAst.CppType) {
-        return (astType as CS.CppAst.CppTypeWithElementType).ElementType;
-    }
     public get name(): string {
         let cppName = this.cppName;
 
@@ -172,7 +109,7 @@ class TSType {
             CS.CppAst.CppTypeKind.Reference,
             CS.CppAst.CppTypeKind.Typedef,
         ].indexOf(astType.TypeKind) != -1) {
-            this.elemType = new TSType(this.generateContext, TSType.getUnderlyingType(astType));
+            this.elemType = new TSType(this.generateContext, getUnderlyingType(astType));
         }
     }
 
@@ -182,18 +119,6 @@ class TSType {
 }
 
 class TSVariable {
-    public static isNotSupportedVariable(generateContext: GenerateContext, astField: CS.CppAst.CppField) {
-        let astType = astField.Type;
-        if (astField.Visibility != CS.CppAst.CppVisibility.Public) return true;
-        if (astField.IsBitField || astField.IsAnonymous) return true;
-        if (TSType.isNotSupportedTypeForInterop(generateContext, astType)) return true;
-        if (checkExclude(astField, generateContext.refExclude)) return true;
-        return false;
-    }
-    public static isNotSupportedParameter(generateContext: GenerateContext, astParam: CS.CppAst.CppParameter) {
-        if (TSType.isNotSupportedTypeForInterop(generateContext, astParam.Type)) return true;
-        return false;
-    }
     public readonly name: string;
     public readonly isStatic: boolean;
     public readonly isReadOnly: boolean;
@@ -284,20 +209,6 @@ class TSVariable {
     }
 }
 class TSOverload {
-    public static isNotSupportedFunction(generateContext: GenerateContext, astFunction: CS.CppAst.CppFunction) {
-        if (astFunction.Visibility != CS.CppAst.CppVisibility.Public) return true;
-        if (TSType.isNotSupportedTypeForInterop(generateContext, astFunction.ReturnType)) {
-            return true;
-        }
-        if (astFunction.Flags & CS.CppAst.CppFunctionFlags.Variadic) return true;
-        if (astFunction.Flags & CS.CppAst.CppFunctionFlags.Deleted) return true;
-        if (astFunction.TemplateParameters.Count > 0) return true;
-        if (csWhere(astFunction.Parameters, (param: CS.CppAst.CppParameter) => {
-            return TSType.isNotSupportedTypeForInterop(generateContext, param.Type)
-        })) return true;
-        if (checkExclude(astFunction, generateContext.refExclude)) return true;
-        return false;
-    }
     public readonly returnType: TSType;
     public readonly params: TSVariable[] = [];
     public readonly name: string;
@@ -337,18 +248,6 @@ class TSFunction {
 }
 
 class TSClass {
-    public static isNotSupportedClass(generateContext: GenerateContext, astClass: CS.CppAst.CppClass) {
-        if (astClass.Functions.Count == 0 && astClass.Fields.Count == 0 && astClass.Constructors.Count == 0) return true;
-        if (astClass.Visibility > CS.CppAst.CppVisibility.Public) return true;
-        if (astClass.IsAnonymous) return true;
-        if (astClass.TemplateKind == CS.CppAst.CppTemplateKind.PartialTemplateClass) return true;
-        if (astClass.TemplateKind == CS.CppAst.CppTemplateKind.TemplateClass) return true;
-        if (astClass.TemplateKind == CS.CppAst.CppTemplateKind.TemplateSpecializedClass) {
-            return !astClass.FullName.startsWith('std::function');
-        }
-        if (checkExclude(astClass, generateContext.refExclude)) return true;
-        return false;
-    }
     public readonly cppFullName: string;
     public readonly baseTypeCppFullName: string;
     public readonly functions: TSFunction[] = [];
@@ -375,18 +274,18 @@ class TSClass {
         this.ctor = new TSFunction(this.generateContext, 'constructor', false, 0);
         if (!this.astClass.IsAbstract)
             csForEach(this.astClass.Constructors, (astFunction: CS.CppAst.CppFunction) => {
-                if (TSOverload.isNotSupportedFunction(this.generateContext, astFunction)) return;
+                if (isNotSupportedFunction(this.generateContext, astFunction)) return;
                 this.ctor.addFunction(astFunction);
             })
     }
     public addAllMember() {
         csForEach(this.astClass.Functions, (astFunction: CS.CppAst.CppFunction) => {
-            if (TSOverload.isNotSupportedFunction(this.generateContext, astFunction)) return;
+            if (isNotSupportedFunction(this.generateContext, astFunction)) return;
             const overload = this.findOrAddOverload(astFunction.Name, astFunction.IsStatic);
             overload.addFunction(astFunction);
         });
         csForEach(this.astClass.Fields, (astField: CS.CppAst.CppField) => {
-            if (TSVariable.isNotSupportedVariable(this.generateContext, astField)) return;
+            if (isNotSupportedVariable(this.generateContext, astField)) return;
             this.fields.push(new TSVariable(this.generateContext, astField));
         });
     }
@@ -402,13 +301,13 @@ class TSClass {
         } else {
             csForEach(this.astClass.Functions, (astFunction: CS.CppAst.CppFunction) => {
                 if (astFunction.Name != sign) return;
-                if (TSOverload.isNotSupportedFunction(this.generateContext, astFunction)) return;
+                if (isNotSupportedFunction(this.generateContext, astFunction)) return;
                 const overload = this.findOrAddOverload(astFunction.Name, astFunction.IsStatic);
                 overload.addFunction(astFunction);
             });
             csForEach(this.astClass.Fields, (astField: CS.CppAst.CppField) => {
                 if (astField.Name != sign) return;
-                if (TSVariable.isNotSupportedVariable(this.generateContext, astField)) return;
+                if (isNotSupportedVariable(this.generateContext, astField)) return;
                 this.fields.push(new TSVariable(this.generateContext, astField));
             });
         }
