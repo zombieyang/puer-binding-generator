@@ -8,28 +8,48 @@ using Puerts.Editor.Generator;
 
 class PuertsCppGenerator
 {
-    class JSLoader : ILoader
+    class JSLoader : ILoader, IResolvableLoader
     {
         private string currentDirectory;
         private string binaryDirectory;
-        public JSLoader(string cwd = null)
+        public JSLoader()
         {
-            currentDirectory = String.IsNullOrEmpty(cwd) ? Environment.CurrentDirectory : cwd;
+            currentDirectory = Environment.CurrentDirectory;
             binaryDirectory = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+        }
+
+        public string Resolve(string specifier, string referrer)
+        {
+            string filepath = specifier;
+            if (PathHelper.IsRelative(specifier))
+                filepath = PathHelper.normalize(PathHelper.Dirname(referrer) + "/" + specifier);
+            
+            if (filepath.StartsWith("lib") || filepath.StartsWith("puerts") || filepath.StartsWith("generator")) {
+                if (System.IO.File.Exists(System.IO.Path.Combine(binaryDirectory, "../js", filepath)))
+                    return filepath;
+                else
+                    return "";
+
+            } else {
+                if (System.IO.File.Exists(System.IO.Path.Combine(currentDirectory, filepath)))
+                    return filepath;
+                else
+                    return "";
+            }
         }
 
         public bool FileExists(string filepath)
         {
-            if (filepath == "binding.config.js") return true;
-            return System.IO.File.Exists(System.IO.Path.Combine(binaryDirectory, "../js", filepath));
+            return true;
         }
 
         public string ReadFile(string filepath, out string debugpath)
         {
-            if (filepath == "binding.config.js")
-                debugpath = System.IO.Path.Combine(currentDirectory, filepath);
-            else
+            if (filepath.StartsWith("lib") || filepath.StartsWith("puerts") || filepath.StartsWith("generator")) {
                 debugpath = System.IO.Path.Combine(binaryDirectory, "../js", filepath);
+            } else {
+                debugpath = System.IO.Path.Combine(currentDirectory, filepath);
+            }
             return System.IO.File.ReadAllText(debugpath);
         }
     }
@@ -62,11 +82,13 @@ class PuertsCppGenerator
                 AddAllBaseTypeToList(typeof(CppAst.CppTemplateArgument), res);
                 AddAllBaseTypeToList(typeof(CppAst.CppFunctionType), res);
                 AddAllBaseTypeToList(typeof(CppAst.CppExpression), res);
+                AddAllBaseTypeToList(typeof(CppAst.CppRawExpression), res);
                 AddAllBaseTypeToList(typeof(CppAst.CppCompilation), res);
                 AddAllBaseTypeToList(typeof(CppAst.CppClass), res);
                 AddAllBaseTypeToList(typeof(CppAst.CppFunction), res);
                 AddAllBaseTypeToList(typeof(CppAst.CppField), res);
                 AddAllBaseTypeToList(typeof(CppAst.CppEnum), res);
+                AddAllBaseTypeToList(typeof(CppAst.CppEnumItem), res);
                 AddAllBaseTypeToList(typeof(CppAst.CppNamespace), res);
                 AddAllBaseTypeToList(typeof(CppAst.CppBaseType), res);
                 AddAllBaseTypeToList(typeof(CppAst.CppParameter), res);
@@ -77,18 +99,18 @@ class PuertsCppGenerator
 
     }
 
-    static int Main()
+    static int Main(string[] args)
     {
+        string configFileName = args.Length >= 2 && args[0] == "-c" ? args[1] : "binding.config.js";
         var loader = new JSLoader();
+
         var jsEnv = new JsEnv(loader);
         
-        //FileExporter.ExportDTS(Path.Combine(Environment.CurrentDirectory, "../src/dts/"), loader);
-        
-        JSObject BindingConfig = jsEnv.ExecuteModule("binding.config.js").Get<JSObject>("default");
+        JSObject BindingConfig = jsEnv.ExecuteModule(configFileName).Get<JSObject>("default");
         string basePath = BindingConfig.Get<string>("base");
-        Action<CppAst.CppCompilation, string, string, string> doGenerate 
+        Action<CppAst.CppCompilation, string, string, JSObject> doGenerate 
             = jsEnv.ExecuteModule("generator.mjs").Get<
-                Action<CppAst.CppCompilation, string, string, string>
+                Action<CppAst.CppCompilation, string, string, JSObject>
             >("default");
         
         var config = new CppAst.CppParserOptions();
@@ -106,6 +128,7 @@ class PuertsCppGenerator
         {
             config.Defines.Add(defines.Get<string>("" + i));
         }
+        config.Defines.Add("PUER_BINDING_GENERATING");
         
         JSObject headers = BindingConfig.Get<JSObject>("headers");
         int headersCount = headers.Get<int>("length");
@@ -113,7 +136,6 @@ class PuertsCppGenerator
         for (int i = 0; i < headersCount; i++)
         {
             string headerPath = headers.Get<string>("" + i);
-            string headerRelativePath = Path.GetRelativePath(basePath, headerPath);
             headerPaths.Add(headerPath);
         }
         var compilation = CppAst.CppParser.ParseFiles(headerPaths, config);
@@ -125,14 +147,10 @@ class PuertsCppGenerator
         var BindingConfigOutput = BindingConfig.Get<JSObject>("output");
         string bindingOutputPath = "";
         string dtsOutputPath = "";
-        string bindingOutputFunctionName = "ALL_PUER_BINDING";
         if (BindingConfigOutput != null) 
         {
             bindingOutputPath = BindingConfigOutput.Get<string>("binding");
             dtsOutputPath = BindingConfigOutput.Get<string>("dts");
-            string tempOutputFunctionName = BindingConfigOutput.Get<string>("bindingFunctionName");
-            if (!String.IsNullOrEmpty(tempOutputFunctionName))
-                bindingOutputFunctionName = tempOutputFunctionName;
         }
         if (string.IsNullOrEmpty(bindingOutputPath) || string.IsNullOrEmpty(dtsOutputPath))
         {
@@ -151,11 +169,8 @@ class PuertsCppGenerator
             compilation, 
             bindingOutputPath,
             dtsOutputPath,
-            bindingOutputFunctionName
+            BindingConfig
         );
-    
-        // Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
-        // File.WriteAllText(Path.Combine(Environment.CurrentDirectory, outputPath), renderResult);
         return 0;
     }
 }

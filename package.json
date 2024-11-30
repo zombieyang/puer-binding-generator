@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "node action/build.js"
+    "build": "node action/build.js",
+    "test": "cd unittest && ../dist/cppast.net/PuertsCppGenerator.exe"
   },
   "author": "",
   "license": "ISC",

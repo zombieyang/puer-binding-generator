@@ -1,29 +1,42 @@
-//@ts-ignore
-import BindingConfig from "binding.config.js";
 import renderBinding from "./lib/render/binding.mjs";
-import renderDeclaration from "./lib/render/declaration.mjs";
-import UsageCollector from "./lib/UsageCollector.mjs";
+import renderDeclaration from "./lib/render/dts.mjs";
+import GenerateContext from "./lib/GenerateContext.mjs";
 
 export default function render (
     compilation: CS.CppAst.CppCompilation,
     bindingOutputPath: string,
     dtsOutputPath: string,
-    bindingFunctionName: string
+    BindingConfig: any
 ) {
-    const usageExpander = new UsageCollector(compilation);
-    const whiteList = BindingConfig.whitelist;
+    if (bindingOutputPath.match(/\.[\w\d_]*$/)) {
+        bindingOutputPath = bindingOutputPath.split('.').slice(0, -1).join('.');
+    }
+    const includes = BindingConfig.includes;
+    const refExcludes = BindingConfig.refExcludes;
+    const genExcludes = BindingConfig.genExcludes;
+    const specialTSNames = BindingConfig.specialTSNames;
+    const generateContext = new GenerateContext(compilation, refExcludes, genExcludes, specialTSNames);
 
-    whiteList
-        // do distinct
-        .filter((value: string, index: number, arr: string[]) => arr.indexOf(value) == index)
-        .forEach((signature: string) => {
-            usageExpander.addBaseUsage(signature);
-        });
-    usageExpander.expandCurrentUsage();
+    if (!includes || includes == '*') { 
+        generateContext.findAllClass();
+        
+    } else {
+        includes
+            // do distinct
+            .filter((value: string, index: number, arr: string[]) => arr.indexOf(value) == index)
+            .forEach((signature: string) => {
+                generateContext.addBaseUsage(signature);
+            });
 
-    const bindingContent = renderBinding(usageExpander, BindingConfig, bindingFunctionName);
-    const dtsContent = renderDeclaration(usageExpander);
+        if (!BindingConfig.skipExpand) {
+            generateContext.expandCurrentUsage();
+        }
+    }
 
-    CS.System.IO.File.WriteAllText(bindingOutputPath, bindingContent);
+    const bindingContents = renderBinding(generateContext, bindingOutputPath.split('/').pop() || '', BindingConfig);
+    const dtsContent = renderDeclaration(generateContext);
+
+    CS.System.IO.File.WriteAllText(bindingOutputPath + ".hpp", bindingContents.header);
+    CS.System.IO.File.WriteAllText(bindingOutputPath + ".cpp", bindingContents.source);
     CS.System.IO.File.WriteAllText(dtsOutputPath, dtsContent);
 } 
