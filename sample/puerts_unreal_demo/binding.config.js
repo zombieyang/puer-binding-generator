@@ -12,23 +12,31 @@ const unrealEngineSourcePath = (() => {
     if (!lineWithEnginePath) {
         throw new Error('Failed to find Unreal Engine path in solution file')
     }
-    return lineWithEnginePath.trim().split('\\Extras')[0].replace(/\\/g, '/') + '/Source'
+    const path = lineWithEnginePath.trim().split('\\Extras')[0].replace(/\\/g, '/') + '/Source'
+    return isAbsolute(path) ? path : join(projectRootPath, path);
 })()
-const responseFileContent = readFileSync(
-    join(projectRootPath, `Intermediate/Build/Win64/UE4Editor/Development/${UNREAL_MAIN_MODULE_NAME}/${UNREAL_MAIN_MODULE_NAME}.cpp.obj.response`),
-    'utf-8'
-)
-const defines = ['UNREAL_CODE_ANALYZER']
+const responseFileContent = (()=> {
+    const contentA = readFileSync(
+        join(projectRootPath, `Plugins/Puerts/Intermediate/Build/Win64/x64/UnrealEditor/Development/Puerts/Module.Puerts.cpp.obj.rsp`),
+        'utf-8'
+    )
+    const contentB = readFileSync(
+        join(projectRootPath, `Plugins/Puerts/Intermediate/Build/Win64/x64/UnrealEditor/Development/Puerts/Puerts.Shared.rsp`),
+        'utf-8'
+    )
+    return contentA + '\n' + contentB;
+})()
+
+const defines = ['UNREAL_CODE_ANALYZER', '_CRT_USE_BUILTIN_OFFSETOF', '_MSC_VER=1934']
 const includePaths = []
 const forceIncludes = []
 responseFileContent.split('\n').forEach(line => {
-    if (line.startsWith('/I')) {
-        const path = line.slice(2).trim()
+    if (line.startsWith('/I') || line.startsWith('/external:I')) {
+
+        let path = line.slice(line.indexOf('I') + 1).trim().replace(/\\/g, '/').replace(/^\"/g, '').replace(/\"$/g, '')
         if (!isAbsolute(path)) {
             includePaths.push(join(unrealEngineSourcePath, path))
-        } else {
-            if (path.startsWith(projectRootPath))
-                path = path.slice(projectRootPath.length + 1)
+        } else { 
             includePaths.push(path)
         }
 

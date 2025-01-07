@@ -5,6 +5,9 @@ using System.IO;
 using System.Linq;
 using Puerts;
 using Puerts.Editor.Generator;
+using System.Threading;
+using System.Threading.Tasks;
+
 
 class PuertsCppGenerator
 {
@@ -97,11 +100,10 @@ class PuertsCppGenerator
             }
         }
 
-    }
+    }   
 
-    static int Main(string[] args)
+    static void Run(string configFileName)
     {
-        string configFileName = args.Length >= 2 && args[0] == "-c" ? args[1] : "binding.config.js";
         var loader = new JSLoader();
 
         var jsEnv = new JsEnv(loader);
@@ -162,6 +164,19 @@ class PuertsCppGenerator
             compilation, 
             BindingConfig
         );
+    }
+
+    static int Main(string[] args)
+    {
+        Thread thread = new Thread(delegate()
+        {
+            string configFileName = args.Length >= 2 && args[0] == "-c" ? args[1] : "binding.config.js";
+            Run(configFileName);
+        }, 16 * 1024 * 1024);
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
         return 0;
     }
 }
