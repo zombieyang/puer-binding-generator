@@ -1065,6 +1065,7 @@
             public get Visibility(): CppAst.CppVisibility;
             public set Visibility(value: CppAst.CppVisibility);
             public get Attributes(): System.Collections.Generic.List$1<CppAst.CppAttribute>;
+            public get MetaAttributes(): CppAst.MetaAttributeMap;
             /**
             * Gets or sets a boolean indicating if this type is a definition. If
             * false
@@ -1289,6 +1290,7 @@
             /** Gets the attached attributes.
             */
             public get Attributes(): System.Collections.Generic.List$1<CppAst.CppAttribute>;
+            public get MetaAttributes(): CppAst.MetaAttributeMap;
             /** Gets or sets the storage qualifier.
             */
             public get StorageQualifier(): CppAst.CppStorageQualifier;
@@ -1483,6 +1485,7 @@
             public get Typedefs(): CppAst.CppContainerList$1<CppAst.CppTypedef>;
             public get Namespaces(): CppAst.CppContainerList$1<CppAst.CppNamespace>;
             public get Attributes(): System.Collections.Generic.List$1<CppAst.CppAttribute>;
+            public get MetaAttributes(): CppAst.MetaAttributeMap;
             public Children () : System.Collections.Generic.IEnumerable$1<CppAst.ICppDeclaration>
             /**
             * Find a
@@ -1574,6 +1577,7 @@
             /** Gets attached attributes. Might be null.
             */
             public get Attributes(): System.Collections.Generic.List$1<CppAst.CppAttribute>;
+            public get MetaAttributes(): CppAst.MetaAttributeMap;
             /** Gets the type of this field/variable.
             */
             public get Type(): CppAst.CppType;
@@ -1640,13 +1644,14 @@
             /** Gets the list of attached attributes.
             */
             public get Attributes(): System.Collections.Generic.List$1<CppAst.CppAttribute>;
+            public get MetaAttributes(): CppAst.MetaAttributeMap;
             public get SizeOf(): number;
             public set SizeOf(value: number);
             public constructor ($name: string)
         }
         /** A C++ typedef (e.g `typedef int XXX`)
         */
-        class CppTypedef extends CppAst.CppTypeDeclaration implements CppAst.ICppElement, CppAst.ICppDeclaration, CppAst.ICppContainer, CppAst.ICppMemberWithVisibility, CppAst.ICppMember
+        class CppTypedef extends CppAst.CppTypeDeclaration implements CppAst.ICppElement, CppAst.ICppDeclaration, CppAst.ICppContainer, CppAst.ICppMemberWithVisibility, CppAst.ICppMember, CppAst.ICppAttributeContainer
         {
             protected [__keep_incompatibility]: never;
         }
@@ -1670,8 +1675,13 @@
             public get Typedefs(): CppAst.CppContainerList$1<CppAst.CppTypedef>;
             public get Namespaces(): CppAst.CppContainerList$1<CppAst.CppNamespace>;
             public get Attributes(): System.Collections.Generic.List$1<CppAst.CppAttribute>;
+            public get MetaAttributes(): CppAst.MetaAttributeMap;
             public Children () : System.Collections.Generic.IEnumerable$1<CppAst.ICppDeclaration>
             public constructor ($name: string)
+        }
+        class MetaAttributeMap extends System.Object
+        {
+            protected [__keep_incompatibility]: never;
         }
         /**
         * Type of a
@@ -1741,6 +1751,7 @@
             public get ValueExpression(): CppAst.CppExpression;
             public set ValueExpression(value: CppAst.CppExpression);
             public get Attributes(): System.Collections.Generic.List$1<CppAst.CppAttribute>;
+            public get MetaAttributes(): CppAst.MetaAttributeMap;
             public constructor ($name: string, $value: bigint)
         }
         /** Attribute kind enum here

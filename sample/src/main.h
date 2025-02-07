@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <map>
 
 class Main
 {
@@ -16,6 +17,8 @@ public:
     {
         printf("hello world %d %d\n", MainAction::A, B);
     }
+
+    static std::map<int, int> map;
 };
 
 int main(int argc, char* argv[]);

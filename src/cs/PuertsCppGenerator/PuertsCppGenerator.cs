@@ -9,16 +9,18 @@ using System.Threading;
 using System.Threading.Tasks;
 
 
-class PuertsCppGenerator
+public class PuertsCppGenerator
 {
     class JSLoader : ILoader, IResolvableLoader
     {
-        private string currentDirectory;
-        private string binaryDirectory;
-        public JSLoader()
+        private string workingDirectory;
+        private string jsDirectory;
+        public JSLoader(string workingDir, string jsDir)
         {
-            currentDirectory = Environment.CurrentDirectory;
-            binaryDirectory = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            workingDirectory = workingDir;
+            jsDirectory = string.IsNullOrEmpty(jsDir) ? 
+                Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) : 
+                jsDir;
         }
 
         public string Resolve(string specifier, string referrer)
@@ -28,13 +30,13 @@ class PuertsCppGenerator
                 filepath = PathHelper.normalize(PathHelper.Dirname(referrer) + "/" + specifier);
             
             if (filepath.StartsWith("lib") || filepath.StartsWith("puerts") || filepath.StartsWith("generator")) {
-                if (System.IO.File.Exists(System.IO.Path.Combine(binaryDirectory, "../js", filepath)))
+                if (System.IO.File.Exists(System.IO.Path.Combine(jsDirectory, "../js", filepath)))
                     return filepath;
                 else
                     return "";
 
             } else {
-                if (System.IO.File.Exists(System.IO.Path.Combine(currentDirectory, filepath)))
+                if (System.IO.File.Exists(System.IO.Path.Combine(workingDirectory, filepath)))
                     return filepath;
                 else
                     return "";
@@ -49,65 +51,20 @@ class PuertsCppGenerator
         public string ReadFile(string filepath, out string debugpath)
         {
             if (filepath.StartsWith("lib") || filepath.StartsWith("puerts") || filepath.StartsWith("generator")) {
-                debugpath = System.IO.Path.Combine(binaryDirectory, "../js", filepath);
+                debugpath = System.IO.Path.Combine(jsDirectory, "../js", filepath);
             } else {
-                debugpath = System.IO.Path.Combine(currentDirectory, filepath);
+                debugpath = System.IO.Path.Combine(workingDirectory, filepath);
             }
             return System.IO.File.ReadAllText(debugpath);
         }
     }
 
-    [Configure]
-    public static class CppAstDelaration
+    public static void Run(string configFileName, string workingDir, string jsDir = null)
     {
-        private static void AddAllBaseTypeToList(Type t, List<Type> res)
-        {
-            while (t != typeof(System.Object))
-            {
-                res.Add(t);
-                t = t.BaseType;
-            }
-        }
-
-        [Typing]
-        public static List<Type> TypingList
-        {
-            get
-            {
-                var res = new List<Type>();
-                res.Add(typeof(System.Console));
-                res.Add(typeof(System.IO.Path));
-                res.Add(typeof(System.IO.File));
-                res.Add(typeof(CppAst.CppContainerList<CppAst.CppClass>));
-                res.Add(typeof(System.Collections.Generic.List<CppAst.CppClass>));
-                AddAllBaseTypeToList(typeof(CppAst.CppTypeWithElementType), res);
-                AddAllBaseTypeToList(typeof(CppAst.CppExtensions), res);
-                AddAllBaseTypeToList(typeof(CppAst.CppTemplateArgument), res);
-                AddAllBaseTypeToList(typeof(CppAst.CppFunctionType), res);
-                AddAllBaseTypeToList(typeof(CppAst.CppExpression), res);
-                AddAllBaseTypeToList(typeof(CppAst.CppRawExpression), res);
-                AddAllBaseTypeToList(typeof(CppAst.CppCompilation), res);
-                AddAllBaseTypeToList(typeof(CppAst.CppClass), res);
-                AddAllBaseTypeToList(typeof(CppAst.CppFunction), res);
-                AddAllBaseTypeToList(typeof(CppAst.CppField), res);
-                AddAllBaseTypeToList(typeof(CppAst.CppEnum), res);
-                AddAllBaseTypeToList(typeof(CppAst.CppEnumItem), res);
-                AddAllBaseTypeToList(typeof(CppAst.CppNamespace), res);
-                AddAllBaseTypeToList(typeof(CppAst.CppBaseType), res);
-                AddAllBaseTypeToList(typeof(CppAst.CppParameter), res);
-                AddAllBaseTypeToList(typeof(CppAst.CppAttribute), res);
-                return res;
-            }
-        }
-
-    }   
-
-    static void Run(string configFileName)
-    {
-        var loader = new JSLoader();
+        var loader = new JSLoader(workingDir, jsDir);
 
         var jsEnv = new JsEnv(loader);
-        
+
         JSObject BindingConfig = jsEnv.ExecuteModule(configFileName).Get<JSObject>("default");
         string basePath = BindingConfig.Get<string>("base");
         Action<CppAst.CppCompilation, JSObject> doGenerate 
@@ -170,8 +127,9 @@ class PuertsCppGenerator
     {
         Thread thread = new Thread(delegate()
         {
+            string workingDir = Environment.CurrentDirectory;
             string configFileName = args.Length >= 2 && args[0] == "-c" ? args[1] : "binding.config.js";
-            Run(configFileName);
+            Run(configFileName, workingDir);
         }, 16 * 1024 * 1024);
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();

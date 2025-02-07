@@ -2,7 +2,7 @@ const { join } = require('path')
 
 const cwd = process.cwd()
 
-const projectRootPath = cwd
+const projectRootPath = "D:/_CODE_/puer-binding-generator/sample"
 
 const defines = []
 const includePaths = []
@@ -12,9 +12,9 @@ export default {
         // manually maintaining file for including all binding.
         "puerHeaderName": "AllBinding.h",
         // the generate position.
-        "dts": join(cwd, "dist/dts/index.d.ts"),
-        "patchjs": join(cwd, "dist/patch/type-patch.js"),
-        "binding": join(cwd, "dist/binding/Binding.h"),
+        "dts": join(projectRootPath, "dist/dts/index.d.ts"),
+        "patchjs": join(projectRootPath, "dist/patch/type-patch.js"),
+        "binding": join(projectRootPath, "dist/binding/Binding.h"),
     },
     "base": projectRootPath,
     defines,
